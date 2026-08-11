@@ -1,72 +1,103 @@
 # 华泰证券三方协议智能运营中台 — Public Runtime PoC v1.5
 
-## 项目定位
+一套面向校招三方协议管理的企业级技术 PoC：**Frontend + FastAPI Backend + Workflow Runtime + PostgreSQL/SQLite + Rule Governance + AI/RPA Mock Connector + Inbox/Outbox + Audit**。
 
-v1.5 在 v1.4.1 可运行 Runtime PoC 的基础上增加公网部署能力。核心业务实现保持不变：FastAPI REST API、服务端 Workflow Engine、Rule Version Pinning、Governance Guard、Inbox/Outbox、Audit、Trace ID、ConnectorExecution、异常人工接管与自动化测试。
+> 当前仓库仅使用 PoC 模拟/脱敏数据，不代表已连接华泰生产系统或高校真实生产平台。请勿录入真实候选人个人信息、真实协议文件、账号密码或生产凭证。
 
-公网部署时使用 PostgreSQL；本地运行时如果没有配置 `DATABASE_URL`，系统自动回退 SQLite。Frontend 与 Backend 由同一个 FastAPI Web Service 提供，因此老师访问公网 URL 时不需要安装 Python、打开 Terminal 或单独配置前端。
+## 一键部署到 Render
 
-> 所有页面数据均为 PoC 模拟/脱敏数据。公网版本禁止写入真实候选人个人信息、真实协议文件或真实系统凭证。
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/xlguwei2022/htsc-tripartite-ai-platform)
+
+Render 会读取仓库根目录的 `render.yaml`，创建：
+
+- FastAPI Web Service
+- PostgreSQL Database
+- `/api/health` 健康检查
+- HTTPS 公网地址
+
+部署完成后，老师只需要打开 Render 分配的公网 URL，不需要 Python、Terminal 或下载 ZIP。
+
+详细步骤：[`DEPLOY_PUBLIC_公网部署说明.md`](./DEPLOY_PUBLIC_%E5%85%AC%E7%BD%91%E9%83%A8%E7%BD%B2%E8%AF%B4%E6%98%8E.md)
+
+## 系统能力
+
+- Offer Accepted 后创建 `TripartiteTask`
+- 一校一策 `UniversityRule` / Rule Version Pinning
+- Draft / Published 规则治理与 Governance Guard
+- Workflow 自动节点推进 + 学生/学校/HR 外部事件推进
+- API/RPA/AI Connector 执行抽象
+- RPA 三次失败 → 降级 → 异常入队 → 人工接管
+- AI 异常建议 + Level 0–3 Human-in-the-loop
+- Inbox 幂等、Idempotency Key、Optimistic Lock / HTTP 409
+- Domain Event、Transactional Outbox 设计、Audit、Trace ID
+- PostgreSQL 公网持久化；本地自动回退 SQLite
+- FastAPI Swagger `/docs`
 
 ## 目录
 
 ```text
-Tripartite_Public_v1.5/
-├── START_HERE_公网版先看我.md
-├── DEPLOY_PUBLIC_公网部署说明.md
-├── README.md
-├── render.yaml                    # Render 免费答辩 Blueprint
-├── deploy/render-stable.yaml      # 长期稳定版 Blueprint
-├── .python-version
-├── requirements.txt               # 本地 SQLite Runtime
-├── requirements-public.txt        # 公网 PostgreSQL Runtime
-├── Dockerfile
-├── docker-compose.public.yml
-├── run.py
+.
 ├── app/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── db.py
+│   ├── main.py
+│   ├── models.py
+│   ├── schemas.py
+│   ├── seed.py
+│   ├── serializers.py
+│   ├── service.py
+│   └── workflow.py
 ├── frontend/
-├── data/                           # 本地 SQLite fallback
+│   └── index.html
 ├── tests/
-├── docs/
-└── offline_backup/
+│   └── test_runtime.py
+├── render.yaml
+├── Dockerfile
+├── requirements.txt
+├── requirements-public.txt
+├── requirements-dev.txt
+├── .python-version
+├── env.example
+├── run.py
+└── DEPLOY_PUBLIC_公网部署说明.md
 ```
 
-## 公网部署
+## 公网架构
 
-最推荐 Render Blueprint：
-
-1. 将本目录完整上传 GitHub。
-2. Render 新建 Blueprint，选择该仓库。
-3. Render 读取 `render.yaml`，自动创建 Web Service + PostgreSQL。
-4. 部署完成后直接把 `https://<service>.onrender.com` 发给老师。
-5. Swagger 位于 `https://<service>.onrender.com/docs`。
-
-详细步骤见 `DEPLOY_PUBLIC_公网部署说明.md`。
+```text
+老师浏览器
+    ↓ HTTPS
+Render Web Service
+    ├── Frontend
+    └── FastAPI REST API
+            ↓
+      Workflow Runtime
+            ↓
+      Render PostgreSQL
+            ↓
+Event / Inbox / Outbox / Audit / ConnectorExecution
+```
 
 ## 本地运行
 
-macOS 可继续双击 `start_demo.command`。本地未配置 `DATABASE_URL` 时默认使用 `data/tripartite_poc.db`。
+```bash
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+python run.py
+```
+
+访问：
 
 ```text
 http://127.0.0.1:8013
 http://127.0.0.1:8013/docs
 ```
 
-## Runtime 数据库策略
+未设置 `DATABASE_URL` 时使用 SQLite；Render Blueprint 自动注入 PostgreSQL `DATABASE_URL`。
 
-```text
-DATABASE_URL 已配置
-    ↓
-PostgreSQL（公网）
-
-DATABASE_URL 未配置
-    ↓
-SQLite（本地）
-```
-
-`/api/health` 会返回实际数据库类型；前端顶部 Runtime Badge 也会显示 `PostgreSQL` 或 `SQLite`。
-
-## 核心 API
+## API
 
 - `GET /api/health`
 - `GET /api/bootstrap`
@@ -81,20 +112,15 @@ SQLite（本地）
 - `GET /api/outbox`
 - `GET /api/audit`
 
-## 测试
+## 自动化测试
 
 ```bash
+pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-Public v1.5 本地兼容性回归：`11 passed`。
+当前 Runtime 回归基线：**11 tests**，覆盖任务创建与持久化、自动流程、完整签约闭环、创建幂等、Inbox 去重、事件类型 Guard、409 乐观锁冲突、规则治理阻断/恢复、RPA Failure、异常状态同步、Outbox 与 Audit。
 
-## 答辩建议
+## PoC 与 Production 边界
 
-最终准备三条链路：
-
-1. 公网 URL：老师直接体验。
-2. 公网 `/docs`：技术追问时展示真实 API。
-3. `start_demo.command` + Offline HTML：公网/网络异常时本地兜底。
-
-项目定位仍然是企业级技术 PoC，而不是已接入华泰或高校真实生产环境的正式系统。
+当前真实实现的是业务 Runtime 与一致性机制；高校真实 API、影刀真实 RPA、企业 AI Gateway、OCR、电子签和 SSO/OIDC 仍为目标 Connector。正式生产化还需要安全评审、RBAC、Secrets Manager、数据库迁移、真实 Connector、可观测平台和运维体系。
