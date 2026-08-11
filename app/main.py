@@ -1,8 +1,8 @@
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Response
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from .config import APP_ENV, APP_NAME, APP_VERSION, DATABASE_KIND, DEMO_BASE_DATE, FRONTEND_PATH
@@ -61,8 +61,16 @@ def index():
     return FileResponse(FRONTEND_PATH)
 
 
+@app.head("/", include_in_schema=False)
+def index_head():
+    # Render's port detector probes HEAD /. Return 200 without loading the UI body.
+    return Response(status_code=200)
+
+
 @app.get("/api/health", tags=["Runtime"])
-def health():
+def health(db: Session = Depends(get_db)):
+    # Readiness includes a minimal database round-trip.
+    db.execute(text("SELECT 1"))
     return {
         "status": "ok",
         "version": APP_VERSION,
