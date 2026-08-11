@@ -9,7 +9,7 @@ services:
     buildCommand: pip install -r requirements-public.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
-    autoDeployTrigger: commit
+    autoDeployTrigger: checksPass
     envVars:
       - key: APP_ENV
         value: render-public-demo
